@@ -7,6 +7,7 @@ Lightweight starter repo. Handles core setup so you can focus on building featur
 - MongoDB via Mongoose
 - Security with Helmet and CORS
 - Global Error Handling with custom error classes
+- Express v4 Compatibility Async Handler (auto-catches async controller errors)
 
 ## Structure
 - src/app.ts - Express app and middleware
@@ -29,7 +30,14 @@ Lightweight starter repo. Handles core setup so you can focus on building featur
    ```ts
    throw new NotFoundError("User missing");
    ```
-4. Use try/catch in controllers and pass to next(error)
+4. Wrap controllers in asyncHandler (no try/catch needed):
+   ```ts
+   export const getUser = asyncHandler(async (req, res) => {
+       const user = await userService.find(req.params.id);
+       res.status(200).json({ success: true, data: user });
+   });
+   ```
+   *Note: If using Express v5, you do not need the asyncHandler wrapper or next(error). You can throw directly in the async controller and delete the asyncHandler file.*
 5. Import routes into app.ts above the 404 handler:
    ```ts
    app.use("/api/users", userRoutes);
