@@ -1,0 +1,171 @@
+=== DIRECTORY TREE ===
+app.ts
+configs/db.ts
+configs/env.ts
+middlewares/error.middleware.ts
+server.ts
+utils/errors.ts
+
+=== FILE CONTENTS ===
+
+--- File: src/app.ts ---
+
+import express, {type NextFunction, type Express, type Request, type Response} from "express";
+import cors from "cors";
+import helmet from "helmet";
+import { NotFoundError } from "./utils/errors.js";
+import { globalErrorHanlder } from "./middlewares/error.middleware.js";
+
+export const startApp = ():Express => {
+    const app: Express = express();
+
+    app.use(helmet());
+    app.use(cors());
+
+    app.use(express.json());  
+    app.use(express.urlencoded({extended: true}));
+
+    app.get("/api/health", (_req, res: Response):void =>{
+        res.status(200).json({status:"OK"});
+    });
+
+    app.use((req:Request, _res, next: NextFunction): void => {
+        next(new NotFoundError(`Can't find ${req.originalUrl} on this server`));
+    });
+
+    app.use(globalErrorHanlder);
+
+    return app;
+}
+--- File: src/configs/db.ts ---
+
+import mongoose from "mongoose";
+import { env } from "./env.js";
+
+export const connectDb = async (): Promise<void> =>{
+    try {
+        const connection = await mongoose.connect(env.MONGO_URI);
+        console.log("MongoDB connected:", connection.connection.host, connection.connection.name);
+    } catch (error) {
+        console.log("MongoDB connection error:", (error as any).message);
+        process.exit(1);
+    }
+}
+--- File: src/configs/env.ts ---
+
+import dotenv from "dotenv";
+dotenv.config();
+
+export const env = {
+    NODE_ENV: process.env.NODE_ENV || "development",
+    PORT: parseInt(process.env.PORT ?? "3000"),
+    MONGO_URI: process.env.MONGO_URI || "mongodb://127.0.0.1:27017/starter_db"
+}
+--- File: src/middlewares/error.middleware.ts ---
+
+import type {NextFunction, Request, Response} from "express";
+import { AppError } from "../utils/errors.js";
+
+export interface ApiErrorResponse {
+    success: boolean;
+    error: {
+        code: string,
+        message: string,
+        details?: any
+    };
+}
+
+export const globalErrorHanlder = (err: any, req: Request, res: Response<ApiErrorResponse>, next: NextFunction) => {
+    let statusCode = 500;
+    let message = 'An unexpected server error occurred.';
+    let code = 'INTERNAL_SERVER_ERROR';
+    let details:unknown;
+    
+    if(err instanceof AppError){
+        code = err.code;
+        statusCode = err.statusCode;
+        message = err.message
+        details = 'details' in err ? (err as any).details : {}
+    }
+    else {
+        console.error('Unhandled Error:', err);
+    }
+    
+    res.status(statusCode).json({
+        success: false,
+        error: {
+            message,
+            code,
+            details
+        }
+    });
+}
+--- File: src/server.ts ---
+
+import { startApp } from "./app.js";
+import { connectDb } from "./configs/db.js";
+import { env } from "./configs/env.js";
+
+const startServer = async (): Promise<void> =>{
+    await connectDb();
+
+    startApp().listen(env.PORT, ():void=>{
+        console.log(`Server is running on port: ${env.PORT}`);
+    });
+}
+
+startServer();
+--- File: src/utils/errors.ts ---
+
+export abstract class AppError extends Error {
+    abstract readonly statusCode: number;
+    readonly code: string;
+    readonly isOperational:boolean;
+
+    constructor(message:string, code:string, isOperational=true){
+        super(message);
+        this.code = code;
+        this.isOperational = isOperational;
+
+        Object.setPrototypeOf(this, new.target.prototype);
+
+        // Captures clean stack trace, omitting the constructor itself from the output
+        if(Error.captureStackTrace){
+            Error.captureStackTrace(this, this.constructor);
+        }
+    }
+}
+
+export class BadRequestError extends AppError {
+    readonly statusCode = 400;
+    readonly details?: any;
+
+    constructor(message:string, code='BAD_REQUEST', details?:any){
+        super(message, code);
+        this.details = details;
+    }
+}
+
+export class NotFoundError extends AppError {
+    readonly statusCode = 404;
+
+    constructor(message='Resource not found', code='NOT_FOUND'){
+        super(message, code);
+    }
+}
+
+export class ConflictError extends AppError {
+    readonly statusCode = 409;
+
+    constructor(message:string, code='CONFLICT'){
+        super(message, code);
+    }
+}
+
+export class InternalServerError extends AppError {
+    readonly statusCode = 500;
+
+    constructor(message='Unextected error occured', code='INTERNAL_SERVER_ERROR'){
+        super(message, code, false);
+    }
+}
