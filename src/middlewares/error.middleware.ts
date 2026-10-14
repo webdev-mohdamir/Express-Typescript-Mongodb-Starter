@@ -10,7 +10,7 @@ export interface ApiErrorResponse {
     };
 }
 
-export const globalErrorHanlder = (err: any, req: Request, res: Response<ApiErrorResponse>, next: NextFunction) => {
+export const globalErrorHandler = (err: any, req: Request, res: Response<ApiErrorResponse>, next: NextFunction) => {
     let statusCode = 500;
     let message = 'An unexpected server error occurred.';
     let code = 'INTERNAL_SERVER_ERROR';

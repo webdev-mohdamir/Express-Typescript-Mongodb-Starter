@@ -2,7 +2,7 @@ import express, {type NextFunction, type Express, type Request, type Response} f
 import cors from "cors";
 import helmet from "helmet";
 import { NotFoundError } from "./utils/errors.js";
-import { globalErrorHanlder } from "./middlewares/error.middleware.js";
+import { globalErrorHandler } from "./middlewares/error.middleware.js";
 
 export const startApp = ():Express => {
     const app: Express = express();
@@ -21,7 +21,7 @@ export const startApp = ():Express => {
         next(new NotFoundError(`Can't find ${req.originalUrl} on this server`));
     });
 
-    app.use(globalErrorHanlder);
+    app.use(globalErrorHandler);
 
     return app;
 }
